@@ -8,14 +8,14 @@
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f8f9fa; }
         
-        /* 頁面頂部按鈕列 */
+        /* 頂部按鈕區塊 */
         .top-bar { max-width: 450px; margin: 0 auto 15px auto; display: flex; justify-content: flex-end; }
         .btn-link {
             padding: 8px 16px;
             font-size: 15px;
             font-weight: bold;
             color: #17a2b8;
-            background-color: #white;
+            background-color: white;
             border: 2px solid #17a2b8;
             border-radius: 6px;
             cursor: pointer;
@@ -30,7 +30,7 @@
         #result { margin-top: 20px; font-size: 18px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 50px; }
         #camera-select { margin-bottom: 15px; padding: 8px; font-size: 16px; border-radius: 5px; width: 100%; max-width: 300px; }
         
-        /* 借還模式切換按鈕 */
+        /* 借用 / 歸還 模式切換按鈕 */
         .mode-container { margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
         .mode-btn {
             padding: 10px 24px;
@@ -49,9 +49,8 @@
 </head>
 <body>
 
-    <!-- 頂部按鈕區塊 -->
+    <!-- 頂部按鈕：點擊在新分頁開啟 list.html -->
     <div class="top-bar">
-        <!-- 點擊後在新分頁開啟 list.html，若想在同頁面跳轉可將 window.open 改為 location.href='list.html' -->
         <button class="btn-link" onclick="window.open('list.html', '_blank')">📋 查看設備清單 ↗</button>
     </div>
 
@@ -66,20 +65,22 @@
     <!-- 鏡頭選擇選單 -->
     <select id="camera-select"></select>
     
+    <!-- QR Code 掃描器與結果顯示區域 -->
     <div id="reader"></div>
     <div id="result">相機啟動中，請稍候...</div>
 
     <script>
         // ★★★ 請替換成您的 GAS 網頁應用程式網址 ★★★
-        const API_URL = "https://script.google.com/macros/s/AKfycbzpAEH-GZ_7ZqhliyeLhpKivW8UNTg5t7PDKHeRJCQB-eeVkhihlcilRSCt7LUHbezW/exec"; 
+        const API_URL = "https://script.google.com/macros/s/AKfycbyPG45YtbgLYsKCo4pxYbzBVUprC1FfHRz73W8UQEXm1elfmLkSpyJ-8wl0w-99oG5Q/exec"; 
 
         let isProcessing = false; 
-        let currentMode = "borrow"; 
+        let currentMode = "borrow"; // 預設為 borrow (借用) 模式
         
         const html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         const cameraSelect = document.getElementById('camera-select');
 
+        // 切換「借用」或「歸還」模式
         function setMode(mode) {
             currentMode = mode;
             const btnBorrow = document.getElementById('btn-borrow');
@@ -94,10 +95,12 @@
             }
         }
 
+        // 掃描成功後觸發的回調函式
         function onScanSuccess(decodedText) {
             if (isProcessing) return; 
             isProcessing = true;
             
+            // 處理內容中包含 URL 參數 prefix 的情況
             if (decodedText.includes("text=")) {
                 decodedText = decodedText.split("text=")[1].split("&")[0];
             }
@@ -107,6 +110,7 @@
             resultDiv.style.color = "#0056b3";
             resultDiv.innerText = `讀取到編號：${decodedText}\n正在進行【${actionText}】處理...`;
             
+            // 發送請求給 GAS API 進行狀態處理
             fetch(`${API_URL}?id=${encodeURIComponent(decodedText)}&action=${currentMode}`)
                 .then(response => response.text())
                 .then(text => {
@@ -114,6 +118,7 @@
                     resultDiv.style.color = isSuccess ? "green" : "red";
                     resultDiv.innerText = text;
 
+                    // 延遲 3.5 秒後恢復掃描鎖定，方便掃描下一個設備
                     setTimeout(() => { 
                         isProcessing = false; 
                         resultDiv.style.color = "#333";
@@ -127,12 +132,14 @@
                 });
         }
 
+        // 啟動鏡頭
         function startCamera(cameraId) {
             html5QrCode.start(cameraId, config, onScanSuccess)
                 .then(() => { document.getElementById('result').innerText = "請對準 QR Code 進行掃描..."; })
                 .catch(err => { console.error(err); });
         }
 
+        // 取得相機清單並預設開啟後置鏡頭
         Html5Qrcode.getCameras().then(devices => {
             if (devices && devices.length) {
                 let selectedCameraId = devices[0].id;
@@ -143,6 +150,7 @@
                     option.text = device.label || `相機 ${index + 1}`;
                     cameraSelect.appendChild(option);
 
+                    // 優先預設選取後置鏡頭
                     const label = device.label.toLowerCase();
                     if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
                         selectedCameraId = device.id;
@@ -152,6 +160,7 @@
                 cameraSelect.value = selectedCameraId;
                 startCamera(selectedCameraId);
 
+                // 切換相機鏡頭選單
                 cameraSelect.addEventListener('change', () => {
                     cameraSelect.disabled = true;
                     html5QrCode.stop().then(() => {
