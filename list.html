@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>設備狀態清單</title>
+    <title>設備狀態分類清單</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; margin: 0; }
-        .header-nav { max-width: 600px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; }
+        .header-nav { max-width: 650px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; }
         .nav-btn { text-decoration: none; padding: 8px 16px; background-color: #007bff; color: white; border-radius: 5px; font-weight: bold; font-size: 14px; }
         
-        .card-container { max-width: 600px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .card-container h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .card-container { max-width: 650px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card-container h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
 
         .search-box { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 15px; margin-bottom: 15px; }
         .form-group { margin-bottom: 12px; }
@@ -18,26 +18,34 @@
         .form-group input { width: 100%; padding: 8px 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 15px; }
         .btn-submit { width: 100%; padding: 10px; background-color: #17a2b8; color: white; border: none; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
 
-        table { width: 100%; border-collapse: collapse; }
+        /* 表格樣式 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 15px; }
         th { background-color: #f1f3f5; }
         
+        /* 狀態文字與數量標籤 */
         .status-available { color: #28a745; font-weight: bold; }
         .status-borrowed { color: #dc3545; font-weight: bold; }
-        .status-other { color: #6c757d; font-weight: bold; }
+        .count-badge { font-size: 14px; padding: 2px 8px; border-radius: 12px; font-weight: normal; background-color: #e9ecef; color: #495057; }
     </style>
 </head>
 <body>
 
     <div class="header-nav">
-        <h2>📋 設備清單</h2>
+        <h2>📋 設備狀態分類清單</h2>
         <a href="index.html" class="nav-btn">📷 進入掃描頁面</a>
     </div>
 
-    <!-- 設備清單表格 -->
-    <div class="card-container">
+    <div style="max-width: 650px; margin: 0 auto;">
         <input type="text" id="search-input" class="search-box" placeholder="🔍 搜尋設備編號或名稱..." onkeyup="filterList()">
-        
+    </div>
+
+    <!-- 1. 借出中設備區塊 -->
+    <div class="card-container">
+        <h3>
+            <span>🔴 借出中清單</span>
+            <span id="borrowed-count" class="count-badge">0 項</span>
+        </h3>
         <table>
             <thead>
                 <tr>
@@ -46,7 +54,27 @@
                     <th>狀態</th>
                 </tr>
             </thead>
-            <tbody id="equipment-list">
+            <tbody id="borrowed-list">
+                <tr><td colspan="3" style="text-align:center;">資料載入中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 2. 可借用設備區塊 -->
+    <div class="card-container">
+        <h3>
+            <span>🟢 可借用清單</span>
+            <span id="available-count" class="count-badge">0 項</span>
+        </h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>編號</th>
+                    <th>設備名稱</th>
+                    <th>狀態</th>
+                </tr>
+            </thead>
+            <tbody id="available-list">
                 <tr><td colspan="3" style="text-align:center;">資料載入中...</td></tr>
             </tbody>
         </table>
@@ -61,18 +89,18 @@
         </div>
         <div class="form-group">
             <label for="add-name">設備名稱 *</label>
-            <input type="text" id="add-name" placeholder="例如：平板電腦">
+            <input type="text" id="add-name" placeholder="例如：投影機">
         </div>
         <div class="form-group">
             <label for="add-brand">廠牌 / 型號</label>
-            <input type="text" id="add-brand" placeholder="例如：APPLE">
+            <input type="text" id="add-brand" placeholder="例如：Epson">
         </div>
         <button class="btn-submit" onclick="addEquipment()">新增設備</button>
     </div>
 
     <script>
-        // ★★★ 請替換成您的 GAS 網頁應用程式網址 ★★★
-        const API_URL = "https://script.google.com/macros/s/AKfycbyPG45YtbgLYsKCo4pxYbzBVUprC1FfHRz73W8UQEXm1elfmLkSpyJ-8wl0w-99oG5Q/exec"; 
+        // ★★★ 請確認為您的 GAS 網頁應用程式網址 ★★★
+        const API_URL = "https://script.google.com/macros/s/AKfycbz_iOv3cQFK9_ugdr08HF358U9kVZnJHf2hJnHGGHGV3oMMffIYOihbzhnwcJLkU5Bl/exec"; 
 
         let equipmentData = [];
 
@@ -81,39 +109,57 @@
                 .then(response => response.json())
                 .then(data => {
                     equipmentData = data;
-                    renderList(data);
+                    renderLists(data);
                 })
                 .catch(err => {
                     console.error("無法取得清單", err);
                 });
         }
 
-        function renderList(data) {
-            const tbody = document.getElementById('equipment-list');
-            tbody.innerHTML = "";
+        function renderLists(data) {
+            const borrowedTbody = document.getElementById('borrowed-list');
+            const availableTbody = document.getElementById('available-list');
+            
+            borrowedTbody.innerHTML = "";
+            availableTbody.innerHTML = "";
 
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">無符合條件的設備</td></tr>';
-                return;
+            // 分選資料
+            const borrowedItems = data.filter(item => item.status === "借出中");
+            const availableItems = data.filter(item => item.status === "可借用");
+
+            // 更新數量統計
+            document.getElementById('borrowed-count').innerText = `${borrowedItems.length} 項`;
+            document.getElementById('available-count').innerText = `${availableItems.length} 項`;
+
+            // 繪製「借出中」清單
+            if (borrowedItems.length === 0) {
+                borrowedTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#888;">目前沒有借出中的設備</td></tr>';
+            } else {
+                borrowedItems.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.brand ? item.brand + ' ' : ''}${item.name}</td>
+                        <td class="status-borrowed">${item.status}</td>
+                    `;
+                    borrowedTbody.appendChild(tr);
+                });
             }
 
-            data.forEach(item => {
-                const tr = document.createElement('tr');
-                
-                let statusClass = "status-other";
-                if (item.status === "可借用") {
-                    statusClass = "status-available";
-                } else if (item.status === "借出中") {
-                    statusClass = "status-borrowed";
-                }
-
-                tr.innerHTML = `
-                    <td>${item.id}</td>
-                    <td>${item.brand ? item.brand + ' ' : ''}${item.name}</td>
-                    <td class="${statusClass}">${item.status}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            // 繪製「可借用」清單
+            if (availableItems.length === 0) {
+                availableTbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#888;">目前沒有可借用的設備</td></tr>';
+            } else {
+                availableItems.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${item.id}</td>
+                        <td>${item.brand ? item.brand + ' ' : ''}${item.name}</td>
+                        <td class="status-available">${item.status}</td>
+                    `;
+                    availableTbody.appendChild(tr);
+                });
+            }
         }
 
         function filterList() {
@@ -123,7 +169,7 @@
                 item.name.toLowerCase().includes(query) || 
                 item.brand.toLowerCase().includes(query)
             );
-            renderList(filtered);
+            renderLists(filtered);
         }
 
         function addEquipment() {
