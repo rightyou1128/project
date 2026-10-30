@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>設備狀態清單</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; margin: 0; }
+        .header-nav { max-width: 600px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; }
+        .nav-btn { text-decoration: none; padding: 8px 16px; background-color: #007bff; color: white; border-radius: 5px; font-weight: bold; font-size: 14px; }
+        
+        .card-container { max-width: 600px; margin: 0 auto 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card-container h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+        .search-box { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 15px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        .form-group input { width: 100%; padding: 8px 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 15px; }
+        .btn-submit { width: 100%; padding: 10px; background-color: #17a2b8; color: white; border: none; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 15px; }
+        th { background-color: #f1f3f5; }
+        
+        .status-available { color: #28a745; font-weight: bold; }
+        .status-borrowed { color: #dc3545; font-weight: bold; }
+        .status-other { color: #6c757d; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header-nav">
+        <h2>📋 設備清單</h2>
+        <a href="index.html" class="nav-btn">📷 進入掃描頁面</a>
+    </div>
+
+    <!-- 設備清單表格 -->
+    <div class="card-container">
+        <input type="text" id="search-input" class="search-box" placeholder="🔍 搜尋設備編號或名稱..." onkeyup="filterList()">
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>編號</th>
+                    <th>設備名稱</th>
+                    <th>狀態</th>
+                </tr>
+            </thead>
+            <tbody id="equipment-list">
+                <tr><td colspan="3" style="text-align:center;">資料載入中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 新增設備區塊 -->
+    <div class="card-container">
+        <h3>➕ 新增設備</h3>
+        <div class="form-group">
+            <label for="add-id">設備編號 (ID) *</label>
+            <input type="text" id="add-id" placeholder="例如：1005">
+        </div>
+        <div class="form-group">
+            <label for="add-name">設備名稱 *</label>
+            <input type="text" id="add-name" placeholder="例如：投影機">
+        </div>
+        <div class="form-group">
+            <label for="add-brand">廠牌 / 型號</label>
+            <input type="text" id="add-brand" placeholder="例如：Epson">
+        </div>
+        <button class="btn-submit" onclick="addEquipment()">新增設備</button>
+    </div>
+
+    <script>
+        // ★★★ 請替換成您的 GAS 網頁應用程式網址 ★★★
+        const API_URL = "https://script.google.com/macros/s/AKfycby7_8Elzzc5BvSobEx58HdMDjKr8DjYOxSsqRNz6sIC6gVClhDlkPexDfPaHptT49Ms/exec"; 
+
+        let equipmentData = [];
+
+        function fetchEquipmentList() {
+            fetch(`${API_URL}?action=list`)
+                .then(response => response.json())
+                .then(data => {
+                    equipmentData = data;
+                    renderList(data);
+                })
+                .catch(err => {
+                    console.error("無法取得清單", err);
+                });
+        }
+
+        function renderList(data) {
+            const tbody = document.getElementById('equipment-list');
+            tbody.innerHTML = "";
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">無符合條件的設備</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                
+                let statusClass = "status-other";
+                if (item.status === "可借用") {
+                    statusClass = "status-available";
+                } else if (item.status === "借出中") {
+                    statusClass = "status-borrowed";
+                }
+
+                tr.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${item.brand ? item.brand + ' ' : ''}${item.name}</td>
+                    <td class="${statusClass}">${item.status}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterList() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = equipmentData.filter(item => 
+                item.id.toLowerCase().includes(query) || 
+                item.name.toLowerCase().includes(query) || 
+                item.brand.toLowerCase().includes(query)
+            );
+            renderList(filtered);
+        }
+
+        function addEquipment() {
+            const idInput = document.getElementById('add-id');
+            const nameInput = document.getElementById('add-name');
+            const brandInput = document.getElementById('add-brand');
+
+            const id = idInput.value.trim();
+            const name = nameInput.value.trim();
+            const brand = brandInput.value.trim();
+
+            if (!id || !name) {
+                alert("請填寫【設備編號】與【設備名稱】！");
+                return;
+            }
+
+            const url = `${API_URL}?action=add&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}&brand=${encodeURIComponent(brand)}`;
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(msg => {
+                    alert(msg);
+                    if (msg.includes("成功")) {
+                        idInput.value = "";
+                        nameInput.value = "";
+                        brandInput.value = "";
+                        fetchEquipmentList();
+                    }
+                })
+                .catch(err => {
+                    alert("新增設備時發生錯誤！");
+                    console.error(err);
+                });
+        }
+
+        fetchEquipmentList();
+    </script>
+</body>
+</html>
