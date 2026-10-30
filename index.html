@@ -1,4 +1,4 @@
-<!DOCTYPE html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -8,7 +8,7 @@
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f8f9fa; }
         #reader { width: 100%; max-width: 450px; margin: 0 auto; background: black; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        #result { margin-top: 25px; font-size: 18px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 60px; }
+        #result { margin-top: 20px; font-size: 18px; font-weight: bold; color: #333; white-space: pre-wrap; line-height: 1.5; min-height: 50px; }
         #camera-select { margin-bottom: 15px; padding: 8px; font-size: 16px; border-radius: 5px; width: 100%; max-width: 300px; }
         
         /* 模式切換按鈕樣式 */
@@ -24,15 +24,28 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .mode-btn.active-borrow {
-            background-color: #007bff;
-            color: white;
-        }
-        .mode-btn.active-return {
-            background-color: #28a745;
-            border-color: #28a745;
-            color: white;
-        }
+        .mode-btn.active-borrow { background-color: #007bff; color: white; }
+        .mode-btn.active-return { background-color: #28a745; border-color: #28a745; color: white; }
+
+        /* 卡片容器通用樣式 */
+        .card-container { max-width: 500px; margin: 25px auto 0 auto; text-align: left; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card-container h3 { margin-top: 0; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+
+        /* 新增設備表單樣式 */
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        .form-group input { width: 100%; padding: 8px 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 15px; }
+        .btn-submit { width: 100%; padding: 10px; background-color: #17a2b8; color: white; border: none; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .btn-submit:hover { background-color: #138496; }
+
+        /* 設備清單表格與狀態顏色設定 */
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 15px; }
+        th { background-color: #f1f3f5; }
+        
+        .status-available { color: #28a745; font-weight: bold; } /* 可借用：綠色 */
+        .status-borrowed { color: #dc3545; font-weight: bold; }  /* 借出中：紅色 */
+        .status-other { color: #6c757d; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -44,22 +57,124 @@
         <button id="btn-return" class="mode-btn" onclick="setMode('return')">📥 歸還</button>
     </div>
 
-    <!-- 手動選擇鏡頭的下拉選單 -->
+    <!-- 鏡頭選擇 -->
     <select id="camera-select"></select>
     
     <div id="reader"></div>
     <div id="result">相機啟動中，請稍候...</div>
 
+    <!-- 新增設備區塊 -->
+    <div class="card-container">
+        <h3>➕ 新增設備</h3>
+        <div class="form-group">
+            <label for="add-id">設備編號 (ID) *</label>
+            <input type="text" id="add-id" placeholder="例如：1005">
+        </div>
+        <div class="form-group">
+            <label for="add-name">設備名稱 *</label>
+            <input type="text" id="add-name" placeholder="例如：投影機">
+        </div>
+        <div class="form-group">
+            <label for="add-brand">廠牌 / 型號</label>
+            <input type="text" id="add-brand" placeholder="例如：Epson">
+        </div>
+        <button class="btn-submit" onclick="addEquipment()">新增設備</button>
+    </div>
+
+    <!-- 設備狀態清單列表 -->
+    <div class="card-container">
+        <h3>📋 設備狀態清單</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>編號</th>
+                    <th>設備名稱</th>
+                    <th>狀態</th>
+                </tr>
+            </thead>
+            <tbody id="equipment-list">
+                <tr><td colspan="3" style="text-align:center;">載入中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
     <script>
         // ★★★ 請替換成您的 GAS 網頁應用程式網址 ★★★
-        const API_URL = "https://script.google.com/macros/s/AKfycbwT_J3OwvxSnRf41xAhx6jbE2ckk0q100aWswYBX-GS-nOx5pzVjLwsJg-JkXt0R0O3/exec"; 
+        const API_URL = "https://script.google.com/macros/s/AKfycbzbjthD89VyHh3ziczHeJDOfsiaEqGo5cH9l0isjgcHTphpX5rBK87TXDDNwrxTzQiD/exec"; 
 
         let isProcessing = false; 
-        let currentMode = "borrow"; // 預設為借用模式 ("borrow" 或 "return")
+        let currentMode = "borrow"; 
         
         const html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         const cameraSelect = document.getElementById('camera-select');
+
+        // 載入並更新設備狀態清單
+        function fetchEquipmentList() {
+            fetch(`${API_URL}?action=list`)
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('equipment-list');
+                    tbody.innerHTML = "";
+
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        
+                        let statusClass = "status-other";
+                        if (item.status === "可借用") {
+                            statusClass = "status-available";
+                        } else if (item.status === "借出中") {
+                            statusClass = "status-borrowed";
+                        }
+
+                        tr.innerHTML = `
+                            <td>${item.id}</td>
+                            <td>${item.brand ? item.brand + ' ' : ''}${item.name}</td>
+                            <td class="${statusClass}">${item.status}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(err => {
+                    console.error("無法取得清單", err);
+                });
+        }
+
+        // 新增設備函式
+        function addEquipment() {
+            const idInput = document.getElementById('add-id');
+            const nameInput = document.getElementById('add-name');
+            const brandInput = document.getElementById('add-brand');
+
+            const id = idInput.value.trim();
+            const name = nameInput.value.trim();
+            const brand = brandInput.value.trim();
+
+            if (!id || !name) {
+                alert("請填寫【設備編號】與【設備名稱】！");
+                return;
+            }
+
+            const url = `${API_URL}?action=add&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}&brand=${encodeURIComponent(brand)}`;
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(msg => {
+                    alert(msg);
+                    if (msg.includes("成功")) {
+                        // 清空表單欄位
+                        idInput.value = "";
+                        nameInput.value = "";
+                        brandInput.value = "";
+                        // 重新整理清單
+                        fetchEquipmentList();
+                    }
+                })
+                .catch(err => {
+                    alert("新增設備時發生網路錯誤！");
+                    console.error(err);
+                });
+        }
 
         // 切換模式（借用/歸還）
         function setMode(mode) {
@@ -80,7 +195,6 @@
             if (isProcessing) return; 
             isProcessing = true;
             
-            // 解析文字（避免包含 URL 參數 prefix）
             if (decodedText.includes("text=")) {
                 decodedText = decodedText.split("text=")[1].split("&")[0];
             }
@@ -90,12 +204,17 @@
             resultDiv.style.color = "#0056b3";
             resultDiv.innerText = `讀取到編號：${decodedText}\n正在進行【${actionText}】處理...`;
             
-            // 將 id 與 action 參數發送給後端 GAS
             fetch(`${API_URL}?id=${encodeURIComponent(decodedText)}&action=${currentMode}`)
                 .then(response => response.text())
                 .then(text => {
-                    resultDiv.style.color = text.includes("成功") ? "green" : "red";
+                    const isSuccess = text.includes("成功");
+                    resultDiv.style.color = isSuccess ? "green" : "red";
                     resultDiv.innerText = text;
+
+                    if (isSuccess) {
+                        fetchEquipmentList();
+                    }
+
                     setTimeout(() => { 
                         isProcessing = false; 
                         resultDiv.style.color = "#333";
@@ -115,7 +234,10 @@
                 .catch(err => { console.error(err); });
         }
 
-        // 取得相機清單並預設優先選擇後鏡頭
+        // 頁面載入時讀取設備清單
+        fetchEquipmentList();
+
+        // 取得相機清單
         Html5Qrcode.getCameras().then(devices => {
             if (devices && devices.length) {
                 let selectedCameraId = devices[0].id;
@@ -126,7 +248,6 @@
                     option.text = device.label || `相機 ${index + 1}`;
                     cameraSelect.appendChild(option);
 
-                    // 優先選取後置鏡頭
                     const label = device.label.toLowerCase();
                     if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
                         selectedCameraId = device.id;
@@ -136,7 +257,6 @@
                 cameraSelect.value = selectedCameraId;
                 startCamera(selectedCameraId);
 
-                // 切換鏡頭
                 cameraSelect.addEventListener('change', () => {
                     cameraSelect.disabled = true;
                     html5QrCode.stop().then(() => {
